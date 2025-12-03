@@ -29,26 +29,6 @@ Built for **Expo SDK 54** (React-Native) and **FastAPI** (Python) in **&lt; 2 se
 | Storage    | AsyncStorage (mobile) / pickle (model) |
 | Auth (opt) | Firebase Auth (future work)            |
 
----
-
-## 📁 Repo Structure
-
-WeatherWear/
-├── backend/ # FastAPI server
-│ ├── app.py
-│ ├── model/
-│ └── requirements.txt
-├── frontend/ # Expo React-Native
-│ ├── App.js
-│ ├── src/
-│ └── package.json
-├── data/ # synthetic 60 k CSV
-├── thesis_figures/ # evaluation charts
-├── .gitignore
-└── README.md
-
----
-
 ## ⚙️ Quick Start
 
 ### 1. Backend
