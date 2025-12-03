@@ -41,6 +41,8 @@ pip install -r requirements.txt
 uvicorn app:app --reload --host 0.0.0.0
 ```
 
+### 2. Frontend
+
 ```bash
 cd frontend
 npm install
