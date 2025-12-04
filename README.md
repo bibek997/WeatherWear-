@@ -1,7 +1,7 @@
 # WeatherWear – Weather-Based Outfit Recommender
 
 A full-stack mobile app that suggests what to wear based on live weather data.  
-Built for **Expo SDK 54** (React-Native) and **FastAPI** (Python) in **&lt; 2 semesters**.
+Built for **Expo SDK 54** (React-Native) and **FastAPI** (Python)
 
 ---
 
