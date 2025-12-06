@@ -1,24 +1,25 @@
 import os
 import pickle
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 load_dotenv()
-# FastAPI instance
+
 app = FastAPI(title="WeatherWear")
 
-# Weather API
+# OpenWeather keys / URLs
 OPENWEATHER_KEY = os.getenv("OPENWEATHER_KEY")
 if not OPENWEATHER_KEY:
     raise RuntimeError("OPENWEATHER_KEY not set in .env")
 
-WEATHER_URL_CURRENT = "http://api.openweathermap.org/data/2.5/weather"
-WEATHER_URL_FORECAST = "http://api.openweathermap.org/data/2.5/forecast"
+CURRENT_WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather"
+FORECAST_WEATHER_URL = "http://api.openweathermap.org/data/2.5/forecast"
 
-# Load models & encoders
+# Models & artifacts
 MODEL_PATHS = {
     "top_label": "models/top_label_model.pkl",
     "bottom_label": "models/bottom_label_model.pkl",
@@ -42,14 +43,15 @@ with open("models/preprocessor.pkl", "rb") as f:
 print("Models, encoders, preprocessor loaded successfully.")
 
 
-# API Input schema
-class OutfitRequest(BaseModel):
-    city: str
-    gender: str = "male"  # male/female/baby
-    unit: str = "C"  # C or F
+# ---------- Utilities ----------
+def c_to_f(c):
+    return c * 9.0 / 5.0 + 32.0
 
 
-# Helper: Determine season
+def f_to_c(f):
+    return (f - 32.0) * 5.0 / 9.0
+
+
 def get_season(timestamp=None):
     if not timestamp:
         month = pd.Timestamp.now().month
@@ -57,68 +59,155 @@ def get_season(timestamp=None):
         month = pd.to_datetime(timestamp, unit="s").month
     if month in [12, 1, 2]:
         return "Winter"
-    elif month in [3, 4, 5]:
+    if month in [3, 4, 5]:
         return "Spring"
-    elif month in [6, 7, 8]:
+    if month in [6, 7, 8]:
         return "Summer"
-    else:
-        return "Autumn"
+    return "Autumn"
 
 
-# Helper: Fetch current weather
-def fetch_weather(city: str, unit: str):
-    units = "metric" if unit.upper() == "C" else "imperial"
-    params = {"q": city, "appid": OPENWEATHER_KEY, "units": units}
-    r = requests.get(WEATHER_URL_CURRENT, params=params)
+# ---------- Weather fetchers ----------
+def fetch_current_weather_for_model(city: str):
+    """
+    Fetch current weather in METRIC units (Celsius). Return dict used as model input.
+    This function ALWAYS uses metric so model inputs are stable.
+    """
+    params = {"q": city, "appid": OPENWEATHER_KEY, "units": "metric"}
+    r = requests.get(CURRENT_WEATHER_URL, params=params, timeout=10)
     if r.status_code != 200:
-        raise HTTPException(status_code=404, detail="City not found")
+        raise HTTPException(
+            status_code=r.status_code,
+            detail=r.json().get("message", "Weather API error"),
+        )
     data = r.json()
-    weather = {
-        "temperature": data["main"]["temp"],
-        "feels_like": data["main"].get("feels_like", data["main"]["temp"]),
-        "humidity": data["main"]["humidity"],
-        "pressure": data["main"].get("pressure", 1013),
-        "wind_speed": data["wind"]["speed"],
-        "visibility": data.get("visibility", 10000),
+    w = {
+        "temperature_c": float(data["main"]["temp"]),
+        "feels_like_c": float(data["main"].get("feels_like", data["main"]["temp"])),
+        "humidity": int(data["main"]["humidity"]),
+        "pressure": int(data["main"].get("pressure", 1013)),
+        "wind_speed": float(data["wind"].get("speed", 0.0)),
+        "visibility": int(data.get("visibility", 10000)),
         "weather_condition": data["weather"][0]["main"],
         "rain": 1 if data["weather"][0]["main"] in ["Rain", "Thunderstorm"] else 0,
-        "season": get_season(data.get("dt", None)),
+        "timestamp": data.get("dt"),
+        "season": get_season(data.get("dt")),
     }
-    return weather
+    return w
 
 
-# Helper: Predict outfit
-def predict_outfit(weather, gender):
+def fetch_forecast_days(city: str, days: int = 3):
+    """
+    Fetch 5-day/3-hour forecast from OpenWeather (metric). Aggregate to calendar days,
+    return list of daily aggregates (date, temp_c, humidity, wind_speed, condition, rain_flag).
+    Excludes today and returns next `days` calendar days.
+    """
+    params = {"q": city, "appid": OPENWEATHER_KEY, "units": "metric"}
+    r = requests.get(FORECAST_WEATHER_URL, params=params, timeout=10)
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=r.status_code,
+            detail=r.json().get("message", "Forecast API error"),
+        )
+    data = r.json()
     df = pd.DataFrame(
         [
             {
-                "temperature": weather["temperature"],
-                "humidity": weather["humidity"],
-                "wind_speed": weather["wind_speed"],
-                "rain": weather["rain"],
+                "dt": item["dt"],
+                "dt_txt": item["dt_txt"],
+                "temp": item["main"]["temp"],
+                "feels_like": item["main"].get("feels_like", item["main"]["temp"]),
+                "humidity": item["main"]["humidity"],
+                "wind_speed": item["wind"]["speed"],
+                "condition": item["weather"][0]["main"],
+                "rain": (
+                    1
+                    if any(k in item and item[k] for k in ("rain",))
+                    or item["weather"][0]["main"] in ["Rain", "Thunderstorm"]
+                    else 0
+                ),
+            }
+            for item in data.get("list", [])
+        ]
+    )
+    if df.empty:
+        raise HTTPException(status_code=500, detail="Empty forecast data")
+
+    df["date"] = pd.to_datetime(df["dt_txt"]).dt.date
+    today = pd.Timestamp.now().date()
+
+    # exclude today; keep next calendar days
+    df_future = df[df["date"] > today]
+
+    if df_future.empty:
+        # sometimes forecast has same-day only — fallback: include today+next two 3-hour buckets
+        df_future = df
+
+    days_agg = []
+    # get up to `days` unique dates (next days)
+    unique_dates = sorted(df_future["date"].unique())[:days]
+    for d in unique_dates:
+        sub = df_future[df_future["date"] == d]
+        days_agg.append(
+            {
+                "date": str(d),
+                "temp_c": float(sub["temp"].mean()),
+                "feels_like_c": float(sub["feels_like"].mean()),
+                "humidity": float(sub["humidity"].mean()),
+                "wind_speed": float(sub["wind_speed"].mean()),
+                "condition": (
+                    sub["condition"].mode()[0]
+                    if not sub["condition"].mode().empty
+                    else sub["condition"].iloc[0]
+                ),
+                "rain": int(sub["rain"].max() > 0),
+                "timestamp": int(sub["dt"].iloc[0]),
+                "season": get_season(int(sub["dt"].iloc[0])),
+            }
+        )
+    return days_agg
+
+
+# ---------- Prediction ----------
+def construct_model_df_row(
+    temp_c,
+    humidity,
+    wind_speed,
+    rain,
+    gender,
+    hour=12,
+    day_of_week="Mon",
+    season="Spring",
+    condition="Clear",
+):
+    return pd.DataFrame(
+        [
+            {
+                "temperature": temp_c,
+                "humidity": humidity,
+                "wind_speed": wind_speed,
+                "rain": rain,
                 "gender": gender,
-                "hour": 12,
-                "day_of_week": "Mon",
-                "season": weather["season"],
-                "weather_condition": weather["weather_condition"],
+                "hour": hour,
+                "day_of_week": day_of_week,
+                "season": season,
+                "weather_condition": condition,
             }
         ]
     )
+
+
+def predict_from_models(model_input_df):
     outfit = {}
     for lbl, model in MODELS.items():
-        pred = model.predict(df)[0]
+        pred = model.predict(model_input_df)[0]
         pred_label = LABEL_ENCODERS[lbl].inverse_transform([pred])[0]
         outfit[lbl.replace("_label", "")] = pred_label
-
-    # Add tips
-    outfit["tips"] = generate_tips_from_outfit(outfit, gender, weather)
     return outfit
 
 
-# Generate tips
 def generate_tips_from_outfit(outfit, gender, weather):
     tips = []
-    temp = weather["temperature"]
+    temp = weather.get("temperature_c", weather.get("temp_c", None))
     top = outfit.get("top", "").lower()
     bottom = outfit.get("bottom", "").lower()
     footwear = outfit.get("footwear", "").lower()
@@ -131,86 +220,145 @@ def generate_tips_from_outfit(outfit, gender, weather):
     elif any(k in top for k in ["tshirt", "tank", "blouse", "shirt"]):
         tips.append(f"{top.capitalize()} is fine for mild weather.")
 
+    # Bottom
     if "skirt" in bottom and gender != "female":
         tips.append(f"{bottom} may be chilly for {gender}.")
-    elif "shorts" in bottom and temp < 20:
+    elif "shorts" in bottom and temp is not None and temp < 20:
         tips.append("Shorts may be too cold.")
     else:
         tips.append(f"{bottom} is suitable.")
 
-    if "boots" in footwear and weather["rain"]:
+    # Footwear
+    if "boots" in footwear and weather.get("rain", 0):
         tips.append("Wear waterproof boots to keep feet dry.")
     elif "sandals" in footwear or "flip" in footwear:
         tips.append("Sandals/flipflops are suitable for hot weather.")
     else:
         tips.append(f"{footwear} are comfortable for daily use.")
 
-    if "umbrella" in accessory or "raincoat" in accessory:
+    # Accessories
+    if "umbrella" in accessory or "raincoat" in accessory or weather.get("rain", 0):
         tips.append("Carry an umbrella or wear waterproof clothing.")
     if "scarf" in accessory or "gloves" in accessory or "hat" in accessory:
         tips.append("Consider adding accessories to stay warm.")
-
     return tips
 
 
-# /outfit endpoint (current weather)
+# ---------- Endpoints ----------
 @app.get("/outfit/{city}")
-def get_outfit(city: str, gender: str = "male", unit: str = "C"):
-    weather = fetch_weather(city, unit)
-    outfit = predict_outfit(weather, gender)
-    return {
-        "city": city,
-        "gender": gender,
-        "temperature": weather["temperature"],
-        "feels_like": weather["feels_like"],
-        "humidity": weather["humidity"],
-        "wind_speed": weather["wind_speed"],
-        "pressure": weather["pressure"],
-        "visibility": weather["visibility"],
-        "weather_condition": weather["weather_condition"],
-        "season": weather["season"],
-        "outfit": outfit,
-    }
+def get_outfit(
+    city: str,
+    gender: str = Query("male", enum=["male", "female", "baby"]),
+    unit: str = Query("C", enum=["C", "F"]),
+):
+    """
+    Current outfit recommendation (uses Celsius internally for model input).
+    Returns temps in requested unit for display.
+    """
+    try:
+        w = fetch_current_weather_for_model(city)
+        # build model input (Celsius)
+        model_df = construct_model_df_row(
+            temp_c=w["temperature_c"],
+            humidity=w["humidity"],
+            wind_speed=w["wind_speed"],
+            rain=w["rain"],
+            gender=gender,
+            hour=12,
+            day_of_week=(
+                datetime.utcfromtimestamp(w["timestamp"]).strftime("%a")
+                if w.get("timestamp")
+                else "Mon"
+            ),
+            season=w["season"],
+            condition=w["weather_condition"],
+        )
+        outfit = predict_from_models(model_df)
+        tips = generate_tips_from_outfit(outfit, gender, w)
 
+        # prepare response temps in requested unit
+        if unit.upper() == "F":
+            temp = round(c_to_f(w["temperature_c"]), 1)
+            feels = round(c_to_f(w["feels_like_c"]), 1)
+        else:
+            temp = round(w["temperature_c"], 1)
+            feels = round(w["feels_like_c"], 1)
 
-# /forecast endpoint (next 3 days)
-@app.get("/forecast/{city}")
-def get_forecast(city: str, gender: str = "male", unit: str = "C"):
-    units = "metric" if unit.upper() == "C" else "imperial"
-    params = {"q": city, "appid": OPENWEATHER_KEY, "units": units}
-    r = requests.get(WEATHER_URL_FORECAST, params=params)
-    if r.status_code != 200:
-        raise HTTPException(status_code=404, detail="City not found")
-
-    data = r.json()
-    results = []
-    # OpenWeather 3-hourly forecast, pick 1 forecast per day (skip today)
-    dates_seen = set()
-    for item in data["list"]:
-        dt_txt = item["dt_txt"]
-        date = dt_txt.split(" ")[0]
-        if date in dates_seen:
-            continue
-        dates_seen.add(date)
-        if len(results) >= 3:
-            break
-        # Skip today
-        today = pd.Timestamp.now().strftime("%Y-%m-%d")
-        if date <= today:
-            continue
-
-        weather = {
-            "temperature": item["main"]["temp"],
-            "feels_like": item["main"]["feels_like"],
-            "humidity": item["main"]["humidity"],
-            "pressure": item["main"]["pressure"],
-            "wind_speed": item["wind"]["speed"],
-            "visibility": item.get("visibility", 10000),
-            "weather_condition": item["weather"][0]["main"],
-            "rain": 1 if item["weather"][0]["main"] in ["Rain", "Thunderstorm"] else 0,
-            "season": get_season(pd.to_datetime(item["dt"], unit="s")),
+        response = {
+            "city": city,
+            "gender": gender,
+            "temperature": temp,
+            "feels_like": feels,
+            "humidity": w["humidity"],
+            "wind_speed": w["wind_speed"],
+            "weather_condition": w["weather_condition"],
+            "season": w["season"],
+            "unit": unit.upper(),
+            "outfit": {**outfit, "tips": tips},
         }
-        outfit = predict_outfit(weather, gender)
-        results.append({"date": date, "weather": weather, "outfit": outfit})
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    return results
+
+@app.get("/forecast/{city}")
+def get_forecast(
+    city: str,
+    gender: str = Query("male", enum=["male", "female", "baby"]),
+    unit: str = Query("C", enum=["C", "F"]),
+    days: int = Query(3, ge=1, le=3),
+):
+    """
+    Next `days` days forecast with outfit suggestions (excludes today).
+    Model inputs are computed in Celsius (forecast uses metric), response temps converted to requested unit.
+    """
+    try:
+        days_agg = fetch_forecast_days(city, days=days)
+        forecasts = []
+        for day in days_agg:
+            # model input uses Celsius (temp_c)
+            model_df = construct_model_df_row(
+                temp_c=day["temp_c"],
+                humidity=day["humidity"],
+                wind_speed=day["wind_speed"],
+                rain=day["rain"],
+                gender=gender,
+                hour=12,
+                day_of_week=datetime.utcfromtimestamp(day["timestamp"]).strftime("%a"),
+                season=day["season"],
+                condition=day["condition"],
+            )
+            outfit = predict_from_models(model_df)
+            tips = generate_tips_from_outfit(
+                outfit, gender, {"temperature_c": day["temp_c"], "rain": day["rain"]}
+            )
+
+            # convert display temp
+            if unit.upper() == "F":
+                display_temp = round(c_to_f(day["temp_c"]), 1)
+                display_feels = round(c_to_f(day["feels_like_c"]), 1)
+            else:
+                display_temp = round(day["temp_c"], 1)
+                display_feels = round(day["feels_like_c"], 1)
+
+            forecasts.append(
+                {
+                    "date": day["date"],
+                    "day": datetime.strptime(day["date"], "%Y-%m-%d").strftime("%a"),
+                    "temp": display_temp,
+                    "feels_like": display_feels,
+                    "humidity": round(day["humidity"], 1),
+                    "wind_speed": round(day["wind_speed"], 1),
+                    "condition": day["condition"],
+                    "rain": bool(day["rain"]),
+                    "unit": unit.upper(),
+                    "outfit": {**outfit, "tips": tips},
+                }
+            )
+        return {"city": city, "forecasts": forecasts}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

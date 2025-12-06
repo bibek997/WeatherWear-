@@ -1,22 +1,3 @@
-// export const outfitEmoji = {
-//   tshirt: "👕",
-//   shirt: "👔",
-//   blouse: "👚",
-//   skirt: "👗",
-//   pants: "👖",
-//   shorts: "🩳",
-//   hoodie: "🧥",
-//   jacket: "🧥",
-//   coat: "🧥",
-//   boots: "🥾",
-//   sneakers: "👟",
-//   sandals: "👡",
-//   umbrella: "☂️",
-//   hat: "🧢",
-//   scarf: "🧣",
-// };
-
-
 export const outfitEmoji = {
   "T-shirt": "👕",
   "tshirt": "👕",
