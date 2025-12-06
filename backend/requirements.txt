@@ -1,8 +1,14 @@
 fastapi
 uvicorn[standard]
+
 pandas
+numpy
 scikit-learn
+xgboost
 joblib
+
 requests
 python-dotenv
-xgboost
+
+matplotlib
+seaborn
