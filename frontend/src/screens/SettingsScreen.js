@@ -14,10 +14,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen({ route, navigation }) {
-  const { location: loc, unit: u, gender: g } = route.params;
+  const { location: loc, unit: u, gender: g, forecastDays: fd } = route.params;
   const [location, setLocation] = useState(loc);
   const [unit, setUnit] = useState(u);
   const [gender, setGender] = useState(g);
+  const [forecastDays, setForecastDays] = useState(fd || 3); // default 3 days
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -28,10 +29,9 @@ export default function SettingsScreen({ route, navigation }) {
 
     setSaving(true);
     try {
-      const payload = { location: location.trim(), unit, gender };
+      const payload = { location: location.trim(), unit, gender, forecastDays };
       await AsyncStorage.setItem('userSetup', JSON.stringify(payload));
       
-      // Show success feedback
       Alert.alert(
         'Settings Saved',
         'Your preferences have been updated successfully.',
@@ -57,6 +57,7 @@ export default function SettingsScreen({ route, navigation }) {
             setLocation('');
             setUnit('C');
             setGender('male');
+            setForecastDays(3);
           }
         }
       ]
@@ -190,6 +191,42 @@ export default function SettingsScreen({ route, navigation }) {
           </View>
         </View>
 
+        {/* Forecast Days Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="calendar-outline" size={20} color="#666" />
+            <Text style={styles.sectionTitle}>Forecast Days</Text>
+          </View>
+          <Text style={styles.sectionDescription}>
+            Select how many days of outfit forecast you want
+          </Text>
+          <View style={styles.optionsContainer}>
+            {[1, 3, 5].map((days) => (
+              <TouchableOpacity
+                key={days}
+                onPress={() => setForecastDays(days)}
+                style={[
+                  styles.optionCard,
+                  forecastDays === days && styles.optionCardActive
+                ]}
+              >
+                <View style={[
+                  styles.radioOuter,
+                  forecastDays === days && styles.radioOuterActive
+                ]}>
+                  {forecastDays === days && <View style={styles.radioInner} />}
+                </View>
+                <Text style={[
+                  styles.optionLabel,
+                  forecastDays === days && { color: '#007AFF', fontWeight: '700' }
+                ]}>
+                  {days} {days === 1 ? 'Day' : 'Days'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* Action Buttons */}
         <View style={styles.actionsSection}>
           <TouchableOpacity 
@@ -220,6 +257,7 @@ export default function SettingsScreen({ route, navigation }) {
   );
 }
 
+// At the end of your new SettingsScreen.js
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -242,23 +280,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backText: {
-    color: '#007AFF',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  headerSpacer: {
-    width: 80,
-  },
+  backButton: { flexDirection: 'row', alignItems: 'center' },
+  backText: { color: '#007AFF', fontWeight: '600', marginLeft: 4 },
+  title: { fontSize: 20, fontWeight: '700', color: '#1A1A1A' },
+  headerSpacer: { width: 80 },
   section: {
     backgroundColor: '#FFF',
     marginHorizontal: 20,
@@ -266,31 +291,14 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginLeft: 8,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#1A1A1A', marginLeft: 8 },
+  sectionDescription: { fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 20 },
   input: {
     borderWidth: 1,
     borderColor: '#E1E5E9',
@@ -300,10 +308,7 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     backgroundColor: '#FAFBFC',
   },
-  optionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  optionsContainer: { flexDirection: 'row', justifyContent: 'space-between' },
   optionCard: {
     flex: 1,
     alignItems: 'center',
@@ -314,10 +319,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     marginHorizontal: 4,
   },
-  optionCardActive: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F7FF',
-  },
+  optionCardActive: { borderColor: '#007AFF', backgroundColor: '#F0F7FF' },
   radioOuter: {
     width: 20,
     height: 20,
@@ -328,41 +330,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  radioOuterActive: {
-    borderColor: '#007AFF',
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#007AFF',
-  },
-  optionSymbol: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 4,
-  },
-  optionSymbolActive: {
-    color: '#007AFF',
-  },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 4,
-  },
-  optionTextActive: {
-    color: '#007AFF',
-  },
-  optionLabel: {
-    fontSize: 12,
-    color: '#999',
-  },
-  actionsSection: {
-    marginTop: 32,
-    paddingHorizontal: 20,
-  },
+  radioOuterActive: { borderColor: '#007AFF' },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF' },
+  optionSymbol: { fontSize: 18, fontWeight: '600', color: '#666', marginBottom: 4 },
+  optionSymbolActive: { color: '#007AFF' },
+  optionText: { fontSize: 14, fontWeight: '600', color: '#666', marginTop: 4 },
+  optionTextActive: { color: '#007AFF' },
+  optionLabel: { fontSize: 12, color: '#999' },
+  actionsSection: { marginTop: 32, paddingHorizontal: 20 },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -373,24 +348,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#007AFF',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
-  saveButtonDisabled: {
-    backgroundColor: '#99CFFF',
-    shadowOpacity: 0,
-  },
-  saveButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
+  saveButtonDisabled: { backgroundColor: '#99CFFF', shadowOpacity: 0 },
+  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
   resetButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,9 +365,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E1E5E9',
   },
-  resetButtonText: {
-    color: '#666',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
+  resetButtonText: { color: '#666', fontWeight: '600', marginLeft: 6 },
 });

@@ -1,97 +1,107 @@
 import pandas as pd
-import joblib
-import os
+import numpy as np
+import pickle
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import classification_report
 
-df = pd.read_csv("data/synthetic_60k.csv")
+# Load synthetic dataset
+data = pd.read_csv("data/synthetic_30k.csv")
+print("Loaded dataset:", data.shape)
 
-num_cols = ["temperature", "humidity", "wind_speed", "uv_index", "feels_like", "hour"]
-cat_cols = ["weather_condition", "gender", "day_of_week"]
-label_cols = ["top_label", "bottom_label", "footwear_label", "accessory_label"]
+# Features & Labels
+features = [
+    "temperature",
+    "humidity",
+    "wind_speed",
+    "rain",
+    "gender",
+    "hour",
+    "day_of_week",
+    "season",
+    "weather_condition",
+]
+labels = ["top_label", "bottom_label", "footwear_label", "accessory_label"]
 
-# PREPROCESSOR (shared by all)
-preprocess = ColumnTransformer(
-    transformers=[
-        ("num", StandardScaler(), num_cols),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
-    ]
+X = data[features].copy()
+y = {lbl: data[lbl] for lbl in labels}
+
+# small noise to numeric features
+np.random.seed(42)
+X["temperature"] = X["temperature"] + np.random.normal(0, 0.5, size=len(X))
+X["humidity"] = X["humidity"] + np.random.normal(0, 1, size=len(X))
+X["wind_speed"] = X["wind_speed"] + np.random.normal(0, 0.2, size=len(X))
+
+# Encode categorical features
+cat_features = ["gender", "day_of_week", "season", "weather_condition"]
+num_features = ["temperature", "humidity", "wind_speed", "rain", "hour"]
+
+preprocessor = ColumnTransformer(
+    [
+        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_features),
+    ],
+    remainder="passthrough",
 )
 
-models = {}  # store 4 label models
-encoders = {}  # store 4 LabelEncoders
-accuracies = {}  # store accuracy of each model
-
-print("=== TRAINING XGBOOST MODELS ==========\n")
-
-for col in label_cols:
-    print(f"\nTraining {col} …")
-
-    # Encode target labels
+# Label encoders for each target
+label_encoders = {}
+for lbl in labels:
     le = LabelEncoder()
-    y = le.fit_transform(df[col])
-    encoders[col] = le
+    y[lbl] = le.fit_transform(y[lbl])
+    label_encoders[lbl] = le
+print("Label encoders created")
+
+# Save encoders for app use
+with open("models/global_label_encoders.pkl", "wb") as f:
+    pickle.dump(label_encoders, f)
+print("Saved label encoders → models/global_label_encoders.pkl")
+
+# Train models for each label
+trained_models = {}
+for lbl in labels:
+    print(f"\nTraining {lbl}...")
 
     X_train, X_test, y_train, y_test = train_test_split(
-        df[num_cols + cat_cols], y, test_size=0.2, random_state=42, stratify=y
+        X, y[lbl], test_size=0.2, random_state=42, stratify=y[lbl]
     )
 
+    # Pipeline with XGBoost
     pipe = Pipeline(
         [
-            ("prep", preprocess),
+            ("preprocessor", preprocessor),
             (
-                "clf",
+                "classifier",
                 XGBClassifier(
-                    n_estimators=600,
-                    learning_rate=0.05,
-                    max_depth=6,
-                    min_child_weight=3,
-                    subsample=0.8,
-                    colsample_bytree=0.7,
-                    gamma=0.1,
-                    reg_alpha=0.2,
-                    reg_lambda=1.0,
-                    objective="multi:softprob",
+                    n_estimators=150,
+                    max_depth=3,  # shallower tree for generalization
+                    learning_rate=0.1,
+                    gamma=1,  # regularization
+                    min_child_weight=2,  # prevent overfitting small leaves
+                    subsample=0.8,  # row sampling
+                    colsample_bytree=0.8,  # column sampling
                     eval_metric="mlogloss",
                     random_state=42,
-                    n_jobs=-1,
                 ),
             ),
         ]
     )
 
     pipe.fit(X_train, y_train)
+
     y_pred = pipe.predict(X_test)
+    print(classification_report(y_test, y_pred))
 
-    acc = accuracy_score(y_test, y_pred)
-    accuracies[col] = acc
+    # Save pipeline
+    model_path = f"models/{lbl}_model.pkl"
+    with open(model_path, "wb") as f:
+        pickle.dump(pipe, f)
+    trained_models[lbl] = pipe
+    print(f"{lbl} model saved → {model_path}")
 
-    print(f"{col:20} | accuracy = {acc:.3f}")
-
-    print(
-        classification_report(
-            le.inverse_transform(y_test),
-            le.inverse_transform(y_pred),
-            zero_division=0,
-        )
-    )
-
-    print("-" * 70)
-
-    # SAVE MODEL
-    models[col] = pipe
-
-# SAVE EVERYTHING
-os.makedirs("model", exist_ok=True)
-
-joblib.dump(models, "model/clothing_models.pkl")
-joblib.dump(encoders, "model/encoders.pkl")
-joblib.dump(preprocess, "model/preprocess.pkl")
-joblib.dump(accuracies, "model/accuracies.pkl")
-
-print("\nSaved → model/")
-print("Final accuracies:", accuracies)
+# Save preprocessor separately
+with open("models/preprocessor.pkl", "wb") as f:
+    pickle.dump(preprocessor, f)
+print("Preprocessor saved → models/preprocessor.pkl")

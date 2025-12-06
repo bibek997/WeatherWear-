@@ -1,4 +1,4 @@
-# ---------- Python ----------
+# ---------- Python / Backend ----------
 __pycache__/
 *.py[cod]
 *$py.class
@@ -29,29 +29,27 @@ ENV/
 env.bak/
 venv.bak/
 
-# ---------- Expo / React-Native ----------
-node_modules/
-.expo/
-.expo-shared/
-dist/
-npm-debug.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-*.orig.*
-web-build/
-ios/Pods/
-android/.gradle/
-android/app/build/
-android/local.properties
-ios/build/
-*.xcworkspace
-*.xcuserdata
-*.xcodeproj/xcuserdata
+# Backend model files & logs
+model/*.pkl
+*.log
 
-# ---------- IDE ----------
+# ---------- Frontend / Expo / React Native ----------
+frontend/node_modules/
+frontend/.expo/
+frontend/.expo-shared/
+frontend/dist/
+frontend/npm-debug.*
+frontend/web-build/
+frontend/ios/Pods/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/local.properties
+frontend/ios/build/
+frontend/*.xcworkspace
+frontend/*.xcuserdata
+frontend/*.xcodeproj/xcuserdata
+
+# ---------- IDE / Editor ----------
 .vscode/
 .idea/
 *.swp
@@ -62,7 +60,5 @@ ios/build/
 .DS_Store
 Thumbs.db
 
-# ---------- Project specifics ----------
-model/*.pkl              # huge pickle
-thesis_figures/*.png     # generated pictures
-*.log
+# ---------- Project Specific ----------
+thesis_figures/*.png
