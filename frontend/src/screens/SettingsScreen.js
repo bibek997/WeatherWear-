@@ -3,51 +3,110 @@ import {
   View, 
   Text, 
   TextInput, 
-  StyleSheet, 
+  StyleSheet,
   TouchableOpacity, 
   ScrollView,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Dimensions
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+
+const { width } = Dimensions.get('window');
 
 export default function SettingsScreen({ route, navigation }) {
-  const { location: loc, unit: u, gender: g, forecastDays: fd } = route.params;
+  const { location: loc, unit: u, gender: g } = route.params;
   const [location, setLocation] = useState(loc);
   const [unit, setUnit] = useState(u);
   const [gender, setGender] = useState(g);
-  const [forecastDays, setForecastDays] = useState(fd || 3); // default 3 days
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  const save = async () => {
+  const getLocationGPS = async () => {
+    setIsGettingLocation(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to use GPS.');
+        setIsGettingLocation(false);
+        return;
+      }
+
+      Alert.alert(
+        'Getting Location',
+        'Fetching your current location...',
+        [{ text: 'OK' }]
+      );
+
+      let currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      // Reverse geocoding to get city name
+      let geocode = await Location.reverseGeocodeAsync({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+
+      if (geocode && geocode.length > 0) {
+        const city = geocode[0].city || geocode[0].region || geocode[0].subregion;
+        if (city) {
+          setLocation(city);
+          Alert.alert(
+            'Location Updated',
+            `Your location has been set to ${city}`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Location Found',
+            `Lat: ${currentLocation.coords.latitude.toFixed(4)}, Lon: ${currentLocation.coords.longitude.toFixed(4)}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('GPS Error:', error);
+      Alert.alert(
+        'Location Error',
+        'Unable to fetch your location. Please make sure GPS is enabled and try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  const saveSettings = async () => {
     if (!location.trim()) {
-      Alert.alert('Location Required', 'Please enter a valid city name.');
+      Alert.alert('Location Required', 'Please enter your location to update settings.');
       return;
     }
 
-    setSaving(true);
+    setIsLoading(true);
     try {
-      const payload = { location: location.trim(), unit, gender, forecastDays };
+      const payload = { location: location.trim(), unit, gender };
       await AsyncStorage.setItem('userSetup', JSON.stringify(payload));
       
       Alert.alert(
-        'Settings Saved',
-        'Your preferences have been updated successfully.',
+        'Settings Updated',
+        'Your preferences have been saved successfully.',
         [{ text: 'OK', onPress: () => navigation.navigate('Home', payload) }]
       );
     } catch (error) {
       Alert.alert('Save Failed', 'Unable to save settings. Please try again.');
     } finally {
-      setSaving(false);
+      setIsLoading(false);
     }
   };
 
   const resetToDefaults = () => {
     Alert.alert(
       'Reset Settings',
-      'Are you sure you want to reset all settings to default values?',
+      'Reset all settings to default values?',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -57,7 +116,28 @@ export default function SettingsScreen({ route, navigation }) {
             setLocation('');
             setUnit('C');
             setGender('male');
-            setForecastDays(3);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem('userSetup');
+              navigation.replace('Setup');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
           }
         }
       ]
@@ -65,305 +145,386 @@ export default function SettingsScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={24} color="#007AFF" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Settings</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="chevron-back" size={24} color="#007AFF" />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Settings</Text>
+            <View style={styles.headerSpacer} />
+          </View>
 
-        {/* Location Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={20} color="#666" />
+          {/* Location Section */}
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Location</Text>
+            <View style={styles.locationContainer}>
+              <View style={styles.inputRow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    placeholder="Enter city name"
+                    value={location}
+                    onChangeText={setLocation}
+                    style={styles.input}
+                    placeholderTextColor="#8E8E93"
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                  />
+                </View>
+                <TouchableOpacity 
+                  style={[styles.gpsButton, isGettingLocation && styles.gpsButtonDisabled]}
+                  onPress={getLocationGPS}
+                  disabled={isGettingLocation}
+                >
+                  {isGettingLocation ? (
+                    <Ionicons name="sync" size={20} color="#FFFFFF" style={styles.rotatingIcon} />
+                  ) : (
+                    <Ionicons name="navigate" size={20} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-          <Text style={styles.sectionDescription}>
-            Enter your city for accurate weather data
-          </Text>
-          <TextInput
-            placeholder="Enter city name"
-            placeholderTextColor="#999"
-            value={location}
-            onChangeText={setLocation}
-            style={styles.input}
-            autoCapitalize="words"
-          />
-        </View>
 
-        {/* Temperature Unit Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="thermometer-outline" size={20} color="#666" />
+          {/* Temperature Unit - Radio Buttons */}
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Temperature Unit</Text>
+            <View style={styles.radioContainer}>
+              {[
+                { value: 'C', label: 'Celsius' },
+                { value: 'F', label: 'Fahrenheit' }
+              ].map((item) => (
+                <TouchableOpacity 
+                  key={item.value}
+                  onPress={() => setUnit(item.value)}
+                  style={styles.radioOption}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioCircle}>
+                    {unit === item.value && <View style={styles.radioSelected} />}
+                  </View>
+                  <Text style={[
+                    styles.radioLabel,
+                    unit === item.value && styles.radioLabelActive
+                  ]}>
+                    {item.label}
+                  </Text>
+                  <Text style={[
+                    styles.radioValue,
+                    unit === item.value && styles.radioValueActive
+                  ]}>
+                    °{item.value}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          <Text style={styles.sectionDescription}>
-            Choose your preferred temperature format
-          </Text>
-          <View style={styles.optionsContainer}>
-            {[
-              { value: 'C', label: 'Celsius', symbol: '°C' },
-              { value: 'F', label: 'Fahrenheit', symbol: '°F' }
-            ].map((item) => (
-              <TouchableOpacity 
-                key={item.value}
-                onPress={() => setUnit(item.value)}
-                style={[
-                  styles.optionCard,
-                  unit === item.value && styles.optionCardActive
-                ]}
-              >
-                <View style={[
-                  styles.radioOuter,
-                  unit === item.value && styles.radioOuterActive
-                ]}>
-                  {unit === item.value && <View style={styles.radioInner} />}
-                </View>
-                <Text style={[
-                  styles.optionSymbol,
-                  unit === item.value && styles.optionSymbolActive
-                ]}>
-                  {item.symbol}
-                </Text>
-                <Text style={styles.optionLabel}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
-        {/* Wardrobe Preference Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="shirt-outline" size={20} color="#666" />
-            <Text style={styles.sectionTitle}>Wardrobe Preference</Text>
+          {/* Wardrobe Preference - Radio Buttons */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Wardrobe Style</Text>
+            <View style={styles.radioContainer}>
+              {[
+                { value: 'male', label: 'Men' },
+                { value: 'female', label: 'Women' },
+                { value: 'baby', label: 'Kids' }
+              ].map((item) => (
+                <TouchableOpacity 
+                  key={item.value}
+                  onPress={() => setGender(item.value)}
+                  style={styles.radioOption}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioCircle}>
+                    {gender === item.value && <View style={styles.radioSelected} />}
+                  </View>
+                  <Text style={[
+                    styles.radioLabel,
+                    gender === item.value && styles.radioLabelActive
+                  ]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          <Text style={styles.sectionDescription}>
-            Select for personalized clothing recommendations
-          </Text>
-          <View style={styles.optionsContainer}>
-            {[
-              { value: 'male', label: 'Men', icon: 'man' },
-              { value: 'female', label: 'Women', icon: 'woman' },
-              { value: 'baby', label: 'Kids', icon: 'happy' }
-            ].map((item) => (
-              <TouchableOpacity 
-                key={item.value}
-                onPress={() => setGender(item.value)}
-                style={[
-                  styles.optionCard,
-                  gender === item.value && styles.optionCardActive
-                ]}
-              >
-                <View style={[
-                  styles.radioOuter,
-                  gender === item.value && styles.radioOuterActive
-                ]}>
-                  {gender === item.value && <View style={styles.radioInner} />}
-                </View>
-                <Ionicons 
-                  name={item.icon} 
-                  size={24} 
-                  color={gender === item.value ? '#007AFF' : '#666'} 
-                />
-                <Text style={[
-                  styles.optionText,
-                  gender === item.value && styles.optionTextActive
-                ]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
-        {/* Forecast Days Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="calendar-outline" size={20} color="#666" />
-            <Text style={styles.sectionTitle}>Forecast Days</Text>
-          </View>
-          <Text style={styles.sectionDescription}>
-            Select how many days of outfit forecast you want
-          </Text>
-          <View style={styles.optionsContainer}>
-            {[1, 3, 5].map((days) => (
-              <TouchableOpacity
-                key={days}
-                onPress={() => setForecastDays(days)}
-                style={[
-                  styles.optionCard,
-                  forecastDays === days && styles.optionCardActive
-                ]}
-              >
-                <View style={[
-                  styles.radioOuter,
-                  forecastDays === days && styles.radioOuterActive
-                ]}>
-                  {forecastDays === days && <View style={styles.radioInner} />}
-                </View>
-                <Text style={[
-                  styles.optionLabel,
-                  forecastDays === days && { color: '#007AFF', fontWeight: '700' }
-                ]}>
-                  {days} {days === 1 ? 'Day' : 'Days'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionsSection}>
+          {/* Save Button */}
           <TouchableOpacity 
-            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-            onPress={save}
-            disabled={saving}
+            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+            onPress={saveSettings}
+            disabled={isLoading}
+            activeOpacity={0.8}
           >
-            <Ionicons 
-              name={saving ? "time-outline" : "checkmark-circle"} 
-              size={20} 
-              color="#FFF" 
-            />
-            <Text style={styles.saveButtonText}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Text>
+            <View style={styles.saveButtonContent}>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <Ionicons name="sync" size={20} color="#FFFFFF" style={styles.rotatingIcon} />
+                  <Text style={styles.saveButtonText}>Saving...</Text>
+                </View>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                </>
+              )}
+            </View>
           </TouchableOpacity>
 
+          {/* Reset Button */}
           <TouchableOpacity 
             style={styles.resetButton}
             onPress={resetToDefaults}
+            activeOpacity={0.7}
           >
-            <Ionicons name="refresh-outline" size={18} color="#666" />
-            <Text style={styles.resetButtonText}>Reset to Defaults</Text>
+            <View style={styles.resetButtonContent}>
+              <Ionicons name="refresh" size={18} color="#8E8E93" />
+              <Text style={styles.resetButtonText}>Reset to Defaults</Text>
+            </View>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+          {/* Logout Button */}
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <View style={styles.logoutButtonContent}>
+              <Ionicons name="log-out" size={20} color="#FF3B30" />
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </View>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-// At the end of your new SettingsScreen.js
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
+    marginTop: 10, 
   },
-  scrollView: {
+  keyboardView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40, 
   },
   header: {
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    paddingBottom: 25,
   },
-  backButton: { flexDirection: 'row', alignItems: 'center' },
-  backText: { color: '#007AFF', fontWeight: '600', marginLeft: 4 },
-  title: { fontSize: 20, fontWeight: '700', color: '#1A1A1A' },
-  headerSpacer: { width: 80 },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  headerSpacer: {
+    width: 80,
+  },
   section: {
-    backgroundColor: '#FFF',
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#1A1A1A', marginLeft: 8 },
-  sectionDescription: { fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 20 },
-  input: {
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: '#E1E5E9',
-    borderRadius: 12,
-    padding: 16,
+    borderColor: '#F2F2F7',
+  },
+  sectionTitle: {
     fontSize: 16,
-    color: '#1A1A1A',
-    backgroundColor: '#FAFBFC',
+    fontWeight: '700',
+    color: '#1C1C1E',
+    marginBottom: 16,
   },
-  optionsContainer: { flexDirection: 'row', justifyContent: 'space-between' },
-  optionCard: {
-    flex: 1,
+  locationContainer: {
+    marginTop: 0,
+  },
+  inputRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FAFBFC',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    marginHorizontal: 4,
   },
-  optionCardActive: { borderColor: '#007AFF', backgroundColor: '#F0F7FF' },
-  radioOuter: {
+  inputContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1C1C1E',
+    fontWeight: '500',
+    height: '100%',
+  },
+  gpsButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gpsButtonDisabled: {
+    backgroundColor: '#8E8E93',
+  },
+  radioContainer: {
+    marginTop: 4,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
+  },
+  radioCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#E1E5E9',
+    borderColor: '#C7C7CC',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginRight: 12,
   },
-  radioOuterActive: { borderColor: '#007AFF' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF' },
-  optionSymbol: { fontSize: 18, fontWeight: '600', color: '#666', marginBottom: 4 },
-  optionSymbolActive: { color: '#007AFF' },
-  optionText: { fontSize: 14, fontWeight: '600', color: '#666', marginTop: 4 },
-  optionTextActive: { color: '#007AFF' },
-  optionLabel: { fontSize: 12, color: '#999' },
-  actionsSection: { marginTop: 32, paddingHorizontal: 20 },
-  saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  radioSelected: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+  },
+  radioLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  radioLabelActive: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  radioValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  radioValueActive: {
+    color: '#007AFF',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    marginTop: 20, 
     marginBottom: 12,
     shadowColor: '#007AFF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 4,
   },
-  saveButtonDisabled: { backgroundColor: '#99CFFF', shadowOpacity: 0 },
-  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
-  resetButton: {
+  saveButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E1E5E9',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  resetButtonText: { color: '#666', fontWeight: '600', marginLeft: 6 },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rotatingIcon: {
+    transform: [{ rotate: '360deg' }],
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  resetButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+  },
+  resetButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  resetButtonText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  logoutButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFD1D1',
+    marginBottom: 20, 
+  },
+  logoutButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  logoutButtonText: {
+    color: '#FF3B30',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
 });

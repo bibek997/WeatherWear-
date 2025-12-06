@@ -1,4 +1,5 @@
 export const outfitEmoji = {
+  // --- ORIGINAL ---
   "T-shirt": "👕",
   "tshirt": "👕",
   "Shirt": "👔",
@@ -19,7 +20,76 @@ export const outfitEmoji = {
   "Flip-flops": "🩴",
   "Umbrella": "☂️",
   "Sunglasses": "🕶️",
-  "Beanie": "🧣",
+  "Beanie": "🧢",
   "Scarf": "🧣",
   none: "–",
+
+  // --- NEW WINTER / COLD ITEMS ---
+  insulated_jacket: "🧥",
+  insulated_parka: "🧥",
+  puffer_jacket: "🧥",
+  quilted_jacket: "🧥",
+  down_jacket: "🧥",
+  warm_pants: "👖",
+  winter_boots: "🥾",
+  insulated_gloves: "🧤",
+  warm_gloves: "🧤",
+  thermal_hat: "🧢",
+  warm_hat: "🧢",
+
+  winter_jacket: "🧥",
+  insulated_snowsuit: "👶",
+  booties: "🧦",
+  mittens: "🧤",
+
+  fleece_jacket: "🧥",
+  sweater: "🧶",
+  wool_sweater: "🧶",
+  medium_winter_jacket: "🧥",
+  soft_cap: "🧢",
+
+  sweatpants: "👖",
+  ankle_boots: "🥿",
+  onesie: "👶",
+
+  // --- MILD / WARM ITEMS ---
+  light_puffer_jacket: "🧥",
+  cardigan: "🧥",
+  windbreaker: "🧥",
+  light_jacket: "🧥",
+  jeans_or_chinos: "👖",
+
+  cotton_pants: "👖",
+  light_cardigan: "🧥",
+  pants: "👖",
+  trench_coat: "🧥",
+  leggings: "🩳",
+  light_onesie: "👶",
+
+  long_sleeve_shirt: "👕",
+  long_sleeve_tshirt: "👕",
+  pant: "👖",
+  cap: "🧢",
+  sundresses: "👗",
+  knee_length_skirts: "🩳",
+  sun_hat: "👒",
+  short_sleeve_onesie: "👶",
+
+  // --- HOT / VERY HOT ---
+  dress: "👗",
+  skirt: "🩳",
+  tank_top: "👕",
+  baby_tee: "👚",
+  miniskirt: "🩳",
+  single_thin_layer: "👶",
+
+  // --- WEATHER OVERRIDES ---
+  raincoat: "🧥",
+  waterproof_jacket: "🧥",
+  waterproof_boots: "🥾",
+
+  snow_jacket: "🧥",
+  snow_pants: "👖",
+  snow_boots: "🥾",
+  gloves: "🧤",
 };
