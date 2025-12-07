@@ -9,8 +9,8 @@ random.seed(42)
 # SETTINGS
 N = 30000
 
-# Weather features
-temperatures = np.random.randint(-10, 45, N)  # temperature range
+# WEATHER FEATURES
+temperatures = np.random.randint(-10, 45, N)
 humidity = np.random.randint(20, 100, N)
 wind_speed = np.random.uniform(0, 15, N)
 
@@ -27,7 +27,7 @@ hour = np.random.randint(6, 22, N)
 day_of_week = np.random.choice(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], N)
 season = np.random.choice(["Spring", "Summer", "Autumn", "Winter"], N)
 
-# MASTER TEMPERATURE + GENDER + RAIN AND SHOW MAPPING
+# TEMP MAPPING (UNCHANGED)
 TEMP_MAPPING = [
     # EXTREME COLD (-10 to 0°C)
     {
@@ -45,7 +45,7 @@ TEMP_MAPPING = [
             "insulated_gloves",
             "thermal_hat",
             "scarf",
-            "warm_gloves",
+            "gloves",
         ],
     },
     {
@@ -69,13 +69,12 @@ TEMP_MAPPING = [
         "categories": [
             "fleece_jacket",
             "puffer_jacket",
-            "sweater",
-            "hoodie",
             "medium_winter_jacket",
             "quilted_jacket",
             "warm_pants",
             "winter_boots",
-            "warm_gloves",
+            "gloves",
+            "scarf",
         ],
     },
     {
@@ -86,12 +85,12 @@ TEMP_MAPPING = [
             "fleece_jacket",
             "puffer_jacket",
             "wool_sweater",
-            "hoodie",
             "winter_long_coat",
             "quilted_jacket",
             "warm_pants",
             "winter_boots",
-            "warm_gloves",
+            "gloves",
+            "scarf",
         ],
     },
     {
@@ -114,6 +113,8 @@ TEMP_MAPPING = [
             "warm_pants",
             "sweatpants",
             "boots",
+            "gloves",
+            "scarf",
         ],
     },
     {
@@ -129,13 +130,20 @@ TEMP_MAPPING = [
             "warm_pants",
             "sweatpants",
             "ankle_boots",
+            "gloves",
+            "scarf",
         ],
     },
     {
         "temp_min": 6,
         "temp_max": 10,
         "gender": "baby",
-        "categories": ["onesie", "sweater", "fleece_jacket", "booties"],
+        "categories": [
+            "onesie",
+            "sweater",
+            "fleece_jacket",
+            "booties",
+        ],
     },
     # MILD (11-15°C)
     {
@@ -152,6 +160,7 @@ TEMP_MAPPING = [
             "sweatpants",
             "boots",
             "sneakers",
+            "scarf",
         ],
     },
     {
@@ -163,17 +172,21 @@ TEMP_MAPPING = [
             "hoodie",
             "windbreaker",
             "cardigan",
-            "light_jacket",
             "jeans_or_chinos",
             "sweatpants",
             "sneakers",
+            "scarf",
         ],
     },
     {
         "temp_min": 11,
         "temp_max": 15,
         "gender": "baby",
-        "categories": ["onesie", "sweater", "cotton_pants"],
+        "categories": [
+            "onesie",
+            "sweater",
+            "cotton_pants",
+        ],
     },
     # WARM (16-20°C)
     {
@@ -211,7 +224,13 @@ TEMP_MAPPING = [
         "temp_min": 21,
         "temp_max": 26,
         "gender": "male",
-        "categories": ["long_sleeve_shirt", "sweatshirt", "pant", "sneakers", "cap"],
+        "categories": [
+            "long_sleeve_shirt",
+            "sweatshirt",
+            "pant",
+            "sneakers",
+            "cap",
+        ],
     },
     {
         "temp_min": 21,
@@ -223,7 +242,7 @@ TEMP_MAPPING = [
             "knee_length_skirts",
             "sneakers",
             "sandals",
-            "sun_hat",
+            "hat",
         ],
     },
     {
@@ -237,13 +256,25 @@ TEMP_MAPPING = [
         "temp_min": 26,
         "temp_max": 30,
         "gender": "male",
-        "categories": ["tshirt", "shorts", "sneakers", "cap"],
+        "categories": [
+            "tshirt",
+            "shorts",
+            "sneakers",
+            "cap",
+        ],
     },
     {
         "temp_min": 26,
         "temp_max": 30,
         "gender": "female",
-        "categories": ["tshirt", "dress", "skirt", "sneakers", "sandals", "sun_hat"],
+        "categories": [
+            "tshirt",
+            "dress",
+            "skirt",
+            "sneakers",
+            "sandals",
+            "sun_hat",
+        ],
     },
     {
         "temp_min": 21,
@@ -282,17 +313,23 @@ TEMP_MAPPING = [
     {
         "weather_condition": "Rain",
         "gender": "all",
-        "categories": ["umbrella", "raincoat", "waterproof_jacket", "waterproof_boots"],
+        "categories": [
+            "raincoat",
+            "waterproof_jacket",
+            "overtrousers",
+            "gumboot",
+            "umbrella",
+        ],
     },
     # SNOW overrides
     {
         "weather_condition": "Snow",
         "gender": "all",
         "categories": [
-            "snow_jacket",
-            "snow_pants",
-            "snow_boots",
-            "warm_hat",
+            "insulated_parka",
+            "warm_pants",
+            "winter_boots",
+            "sherpa_topi",
             "gloves",
             "scarf",
         ],
@@ -302,28 +339,30 @@ TEMP_MAPPING = [
 
 # FUNCTION TO PICK OUTFIT
 def get_categories(temp, weather, gender):
+    # Picks outfit categories based on temperature, gender, and weather overrides. Returns a list of categories.
     outfit = []
 
-    # Temperature & gender rules
+    weather_lower = weather.lower() if isinstance(weather, str) else ""
+
     for rule in TEMP_MAPPING:
+        # Temperature & gender-based rules
         if "weather_condition" not in rule:
             if rule["temp_min"] <= temp <= rule["temp_max"]:
                 if rule["gender"] == "adult" and gender in ["male", "female"]:
                     outfit.extend(rule["categories"])
                 elif rule["gender"] == gender:
                     outfit.extend(rule["categories"])
+        else:
+            if weather_lower == rule["weather_condition"].lower():
+                outfit.extend(rule["categories"])
 
-    # Rain overrides
-    for rule in TEMP_MAPPING:
-        if "weather_condition" in rule and weather == "Rain":
-            outfit.extend(rule["categories"])
-
-    return list(set(outfit))  # remove duplicates
+    return list(set(outfit))
 
 
-# Sub-labels compatible with ML
+# LABEL SELECTORS
 def select_top(categories):
-    for c in categories:
+    categories_lower = [c.lower() for c in categories]
+    for c in categories_lower:
         if any(
             x in c
             for x in [
@@ -343,23 +382,81 @@ def select_top(categories):
 
 
 def select_bottom(categories):
-    for c in categories:
+    categories_lower = [c.lower() for c in categories]
+    for c in categories_lower:
         if any(x in c for x in ["pants", "jeans", "shorts", "skirt"]):
             return c
     return "pants"
 
 
-def select_footwear(categories):
-    for c in categories:
-        if any(x in c for x in ["boots", "sandals", "shoes", "sneakers", "booties"]):
+def select_footwear(categories, weather=None):
+    categories_lower = [c.lower() for c in categories]
+    is_rain = False
+    is_snow = False
+
+    if weather:
+        weather_lower = weather.lower() if isinstance(weather, str) else ""
+        is_rain = weather_lower == "rain"
+        is_snow = weather_lower == "snow"
+
+    # PRIORITIZE RAIN BOOTS IF RAINING
+    if is_rain:
+        for c in categories_lower:
+            if "gumboot" in c:
+                return c
+    # PRIORITIZE WINTER BOOTS IF SNOWING
+    if is_snow:
+        for c in categories_lower:
+            if "winter_boots" in c:
+                return c
+
+    # Otherwise pick normal footwear
+    for c in categories_lower:
+        if any(
+            x in c
+            for x in ["boots", "sandals", "shoes", "sneakers", "booties", "gumboot"]
+        ):
             return c
+
     return "sneakers"
 
 
-def select_accessory(categories):
-    for c in categories:
-        if any(x in c for x in ["hat", "cap", "scarf", "umbrella", "goggles"]):
+def select_accessory(categories, weather=None):
+    categories_lower = [c.lower() for c in categories]
+
+    condition = weather.lower() if isinstance(weather, str) else ""
+
+    # SNOW PRIORITY
+    if condition == "snow":
+        for c in categories_lower:
+            if "sherpa_topi" in c:
+                return c
+        for c in categories_lower:
+            if "gloves" in c or "scarf" in c:
+                return c
+
+    # RAIN PRIORITY
+    if condition == "rain":
+        for c in categories_lower:
+            if "umbrella" in c:
+                return c
+
+    # REGULAR SELECTION
+    for c in categories_lower:
+        if any(
+            x in c
+            for x in [
+                "hat",
+                "cap",
+                "scarf",
+                "umbrella",
+                "sunglasses",
+                "gloves",
+                "sherpa_topi",
+            ]
+        ):
             return c
+
     return "none"
 
 
@@ -384,11 +481,17 @@ data["full_outfit_categories"] = [
     for t, w, g in zip(data.temperature, data.weather_condition, data.gender)
 ]
 
-# ML labels
+# ML labels with weather-awareness for accessories/footwear
 data["top_label"] = data["full_outfit_categories"].apply(select_top)
 data["bottom_label"] = data["full_outfit_categories"].apply(select_bottom)
-data["footwear_label"] = data["full_outfit_categories"].apply(select_footwear)
-data["accessory_label"] = data["full_outfit_categories"].apply(select_accessory)
+data["footwear_label"] = [
+    select_footwear(cat, weather=w)
+    for cat, w in zip(data.full_outfit_categories, data.weather_condition)
+]
+data["accessory_label"] = [
+    select_accessory(cat, weather=w)
+    for cat, w in zip(data.full_outfit_categories, data.weather_condition)
+]
 
 # SAVE CSV
 data.to_csv("data/synthetic_30k.csv", index=False)

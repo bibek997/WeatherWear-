@@ -58,7 +58,6 @@ export const outfitEmoji = {
   windbreaker: "🧥",
   light_jacket: "🧥",
   jeans_or_chinos: "👖",
-
   cotton_pants: "👖",
   light_cardigan: "🧥",
   pants: "👖",
@@ -87,9 +86,11 @@ export const outfitEmoji = {
   raincoat: "🧥",
   waterproof_jacket: "🧥",
   waterproof_boots: "🥾",
-
   snow_jacket: "🧥",
   snow_pants: "👖",
   snow_boots: "🥾",
   gloves: "🧤",
+  
+  gumboot: "🥾",
+  sherpa_topi: "🧢",
 };

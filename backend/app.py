@@ -43,7 +43,7 @@ with open("models/preprocessor.pkl", "rb") as f:
 print("Models, encoders, preprocessor loaded successfully.")
 
 
-# ---------- Utilities ----------
+# Utilities
 def c_to_f(c):
     return c * 9.0 / 5.0 + 32.0
 
@@ -66,7 +66,7 @@ def get_season(timestamp=None):
     return "Autumn"
 
 
-# ---------- Weather fetchers ----------
+# Weather fetchers
 def fetch_current_weather_for_model(city: str):
     """
     Fetch current weather in METRIC units (Celsius). Return dict used as model input.
@@ -167,7 +167,7 @@ def fetch_forecast_days(city: str, days: int = 3):
     return days_agg
 
 
-# ---------- Prediction ----------
+# Prediction
 def construct_model_df_row(
     temp_c,
     humidity,
@@ -205,56 +205,149 @@ def predict_from_models(model_input_df):
     return outfit
 
 
+# Tips Generator
 def generate_tips_from_outfit(outfit, gender, weather):
     tips = []
-    temp = weather.get("temperature_c", weather.get("temp_c", None))
+
+    # WEATHER & OUTFIT EXTRACTION
+    temp = weather.get("temperature_c", weather.get("temp_c"))
+    cond = weather.get("weather_condition", "").lower()
+
+    is_rain = weather.get("rain", False) or "rain" in cond
+    is_snow = weather.get("snow", False) or "snow" in cond
+
     top = outfit.get("top", "").lower()
     bottom = outfit.get("bottom", "").lower()
     footwear = outfit.get("footwear", "").lower()
     accessory = outfit.get("accessory", "").lower()
 
+    # TOP TIPS
+    top_tips = []
+
     if any(
-        k in top for k in ["puffer", "parka", "coat", "raincoat", "thermal", "hoodie"]
+        k in top
+        for k in [
+            "puffer_jacket",
+            "quilted_jacket",
+            "insulated_parka",
+            "coat",
+            "thermal",
+            "hoodie",
+            "sweater",
+        ]
     ):
-        tips.append(f"Consider wearing {top} to stay warm.")
-    elif any(k in top for k in ["tshirt", "tank", "blouse", "shirt"]):
-        tips.append(f"{top.capitalize()} is fine for mild weather.")
+        top_tips.append(f"{top} provides warmth and is suitable for cold weather.")
 
-    # Bottom
+    elif any(k in top for k in ["tshirt", "shirt"]):
+        top_tips.append(
+            f"{top.capitalize()} is suitable for mild or warm temperatures."
+        )
+
+    else:
+        top_tips.append(
+            f"{top.capitalize()} can be worn depending on personal comfort."
+        )
+
+    tips.extend(top_tips)
+
+    # BOTTOM TIPS
+    bottom_tips = []
+
     if "skirt" in bottom and gender != "female":
-        tips.append(f"{bottom} may be chilly for {gender}.")
-    elif "shorts" in bottom and temp is not None and temp < 20:
-        tips.append("Shorts may be too cold.")
-    else:
-        tips.append(f"{bottom} is suitable.")
+        bottom_tips.append(f"A {bottom} may feel cold for {gender}.")
 
-    # Footwear
-    if "boots" in footwear and weather.get("rain", 0):
-        tips.append("Wear waterproof boots to keep feet dry.")
-    elif "sandals" in footwear or "flip" in footwear:
-        tips.append("Sandals/flipflops are suitable for hot weather.")
-    else:
-        tips.append(f"{footwear} are comfortable for daily use.")
+    elif "shorts" in bottom and (temp is not None and temp < 20):
+        bottom_tips.append("Shorts may feel chilly at this temperature.")
 
-    # Accessories
-    if "umbrella" in accessory or "raincoat" in accessory or weather.get("rain", 0):
-        tips.append("Carry an umbrella or wear waterproof clothing.")
-    if "scarf" in accessory or "gloves" in accessory or "hat" in accessory:
-        tips.append("Consider adding accessories to stay warm.")
+    else:
+        bottom_tips.append(f"{bottom.capitalize()} is suitable for current weather.")
+
+    tips.extend(bottom_tips)
+
+    # FOOTWEAR TIPS
+    footwear_tips = []
+
+    if is_snow:
+        if not any(k in footwear for k in ["boot", "snow", "insulated", "waterproof"]):
+            footwear_tips.append(
+                "Snowy conditions — insulated waterproof boots are recommended."
+            )
+        else:
+            footwear_tips.append(f"{footwear.capitalize()} are appropriate for snow.")
+
+    elif is_rain:
+        if not any(
+            k in footwear for k in ["gumboot", "rainboot", "waterproof", "boot"]
+        ):
+            footwear_tips.append(
+                "Rainy weather — waterproof footwear will keep your feet dry."
+            )
+        else:
+            footwear_tips.append(f"{footwear.capitalize()} are suitable for rain.")
+
+    else:
+        footwear_tips.append(f"{footwear.capitalize()} are suitable for daily use.")
+
+    tips.extend(footwear_tips)
+
+    # ACCESSORIES TIPS
+    accessory_tips = []
+
+    # Weather overrides (always show even if accessory = none)
+    if is_rain:
+        accessory_tips.append("Rainy weather — carry an umbrella or wear a raincoat.")
+
+    elif is_snow:
+        accessory_tips.append(
+            "Snowy weather — stay warm: wear sherpa topi, gloves, and a scarf."
+        )
+
+    # Normal accessory rules (ONLY if accessory exists and is not "none")
+    elif accessory and accessory != "none":
+        if temp is not None:
+
+            # Cold
+            if temp <= 5:
+                if not any(
+                    k in accessory for k in ["scarf", "gloves", "hat", "beanie"]
+                ):
+                    accessory_tips.append(
+                        "Add scarf, gloves, or a warm hat for very cold weather."
+                    )
+                else:
+                    accessory_tips.append(f"Wear {accessory} to keep warm.")
+
+            # Hot
+            elif temp >= 26:
+                accessory_tips.append(
+                    f"Wear {accessory} to stay cool and protected from sun."
+                )
+
+            # Mild
+            else:
+                accessory_tips.append(
+                    f"{accessory.capitalize()} can complement your outfit."
+                )
+
+    if accessory_tips:
+        tips.extend(accessory_tips)
+
+    # LAYERING ADVICE
+    if temp is not None and temp < 7:
+        tips.append(
+            "It's too cold — layering is recommended: base layer + insulating layer + outer shell."
+        )
+
     return tips
 
 
-# ---------- Endpoints ----------
+# Endpoints
 @app.get("/outfit/{city}")
 def get_outfit(
     city: str,
     gender: str = Query("male", enum=["male", "female", "baby"]),
     unit: str = Query("C", enum=["C", "F"]),
 ):
-    """
-    Current outfit recommendation (uses Celsius internally for model input).
-    Returns temps in requested unit for display.
-    """
     try:
         w = fetch_current_weather_for_model(city)
         # build model input (Celsius)
