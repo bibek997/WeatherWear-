@@ -41,7 +41,7 @@ export const toEmoji = (text) => {
     return "🧣";
   if (t.includes("sherpa_topi"))
     return "🧢";
-  if (t.includes("sun_hat"))
+  if (t.includes("sun_hat"), ("hat") )
     return "👒";
 
   // Baby / onesie

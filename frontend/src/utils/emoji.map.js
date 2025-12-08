@@ -69,6 +69,7 @@ export const outfitEmoji = {
   long_sleeve_tshirt: "👕",
   pant: "👖",
   cap: "🧢",
+  hat: "👒",
   sundresses: "👗",
   knee_length_skirts: "🩳",
   sun_hat: "👒",
