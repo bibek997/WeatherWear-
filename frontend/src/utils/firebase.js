@@ -1,6 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  initializeAuth,
+  getReactNativePersistence,
+} from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAt2izC2IR2NKB0LlOsd-mLOJjY6TdXcm4",
@@ -13,10 +16,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence for React Native
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+// 🔥 Correct auth initialization for Expo Go
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
 });
-
-export { auth };
-export default app;
