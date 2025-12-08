@@ -4,10 +4,10 @@
     "slug": "weatherwear",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.yourname.weatherwear",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#FFFFFF"
       }
     },
