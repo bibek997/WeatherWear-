@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   keyboardContainer: { flex: 1 },
   scrollView: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: HORIZONTAL_PADDING * 1.5, paddingBottom: SPACING * 2, paddingTop: SPACING * 0.3, minHeight: height * 0.7 },
-  header: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingTop: Platform.OS === 'ios' ? 30 : 50, paddingBottom: SPACING, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 },
+  header: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingTop: Platform.OS === 'ios' ? 70 : 60, paddingBottom: SPACING, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 },
   headerContent: { paddingHorizontal: SPACING, alignItems: 'center' },
   backContainer: { width: '100%', alignItems: 'flex-start', marginBottom: 8 },
   backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.2)', justifyContent: 'center', alignItems: 'center' },

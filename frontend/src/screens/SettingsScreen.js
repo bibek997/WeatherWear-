@@ -301,11 +301,9 @@ export default function SettingsScreen({ route, navigation }) {
   );
 }
 
-// --- Styles ---
-// You can reuse styles from your old settings page
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 20, paddingTop: 50, paddingBottom: 20, backgroundColor: COLORS.primary },
+  header: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 20, backgroundColor: COLORS.primary },
   headerTitle: { fontSize: 25, fontWeight: '700', color: COLORS.white },
   section: { marginTop: 20, marginHorizontal: 16, backgroundColor: COLORS.white, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },

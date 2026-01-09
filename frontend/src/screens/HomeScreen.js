@@ -7,6 +7,7 @@ import {
   ActivityIndicator, 
   TouchableOpacity,
   RefreshControl,
+  Platform,
   Alert,
   Dimensions,
   StatusBar
@@ -104,6 +105,10 @@ export default function HomeScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={headerColor} />
+      
+      {/* Status bar spacer like SettingsScreen */}
+      <View style={[styles.statusBarSpacer, { backgroundColor: headerColor, height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 24 }]} />
+      
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -116,9 +121,6 @@ export default function HomeScreen({ route, navigation }) {
         }
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top margin spacer */}
-        <View style={styles.topMargin} />
-
         {/* Header */}
         <View style={[styles.header, { backgroundColor: headerColor }]}>
           <View style={styles.headerContent}>
@@ -305,17 +307,24 @@ export default function HomeScreen({ route, navigation }) {
 }
 
 // -----------------------------
-// Styles remain unchanged
+// Updated styles
 // -----------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
   },
+  statusBarSpacer: {
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
   scrollContent: {
     paddingBottom: 10,
   },
-  topMargin: { height: 15 },
   bottomMargin: { height: 15 },
   loadingContainer: {
     flex: 1,
@@ -334,14 +343,14 @@ const styles = StyleSheet.create({
   header: {
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    paddingTop: 15,
+    paddingTop: Platform.OS === 'ios' ? 20 : 10,
     paddingBottom: 30,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
-    marginTop: 10,
+    marginTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 24,
   },
   headerContent: { paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   locationRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
